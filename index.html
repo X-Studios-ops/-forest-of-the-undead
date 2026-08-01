@@ -3,66 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forest of the Undead - 3D Multiplayer Survival</title>
+    <title>Forest of the Undead - 3D Survival</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Three.js (Core 3D Engine) -->
+    <!-- Three.js & GLTFLoader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
-    <!-- Custom Game CSS -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Jura:wght@400;700&display=swap');
-        
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background-color: #030503; 
-            color: white; 
-            font-family: 'Jura', sans-serif; 
-            user-select: none;
-            -webkit-user-select: none; /* Mobile touch highlight disable */
-        }
-
+        body { margin: 0; overflow: hidden; background-color: #030503; color: white; font-family: 'Jura', sans-serif; user-select: none; -webkit-user-select: none; }
         .font-horror { font-family: 'Creepster', cursive; letter-spacing: 2px; }
-        
-        .glass-panel {
-            background: rgba(10, 15, 10, 0.7);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(34, 197, 94, 0.2);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-        }
-
+        .glass-panel { background: rgba(10, 15, 10, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(34, 197, 94, 0.2); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); }
         .bar-container { background: #1a1a1a; border: 1px solid #333; position: relative; overflow: hidden; }
         .health-fill { background: linear-gradient(90deg, #7f1d1d, #ef4444); transition: width 0.3s; }
-        .stamina-fill { background: linear-gradient(90deg, #1e3a8a, #3b82f6); transition: width 0.1s; }
-        
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
-        ::-webkit-scrollbar-thumb { background: rgba(34, 197, 94, 0.5); border-radius: 10px; }
-
-        .damage-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; box-shadow: inset 0 0 100px rgba(255, 0, 0, 0); pointer-events: none; transition: box-shadow 0.2s; z-index: 40; }
+        .damage-overlay { position: fixed; inset: 0; box-shadow: inset 0 0 100px rgba(255, 0, 0, 0); pointer-events: none; transition: box-shadow 0.2s; z-index: 40; }
         .damage-active { box-shadow: inset 0 0 150px rgba(255, 0, 0, 0.6); }
 
-        #game-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
+        #game-canvas { position: absolute; inset: 0; z-index: 1; }
+        #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
 
-        /* --- MOBILE CONTROLS CSS --- */
+        /* Mobile Controls */
         @media (min-width: 768px) { #mobile-controls { display: none !important; } }
-        .touch-btn { background: rgba(30, 41, 59, 0.7); border: 2px solid rgba(71, 85, 105, 0.8); border-radius: 50%; color: white; font-weight: bold; font-family: monospace; user-select: none; }
+        .touch-btn { background: rgba(30, 41, 59, 0.7); border: 2px solid rgba(71, 85, 105, 0.8); border-radius: 50%; color: white; font-weight: bold; font-family: monospace; }
         .touch-btn:active { background: rgba(59, 130, 246, 0.8); }
 
-        /* --- PORTRAIT WARNING CSS --- */
+        /* Portrait Warning */
         #portrait-warning { display: none; }
         @media screen and (orientation: portrait) and (max-width: 768px) {
-            #portrait-warning {
-                display: flex !important;
-                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-                background: #000; z-index: 99999;
-                flex-direction: column; justify-content: center; align-items: center;
-                color: white; text-align: center; font-family: sans-serif;
-            }
+            #portrait-warning { display: flex !important; position: fixed; inset: 0; background: #000; z-index: 99999; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; }
             #main-menu, #ui-layer, #loading-screen, #game-canvas, #mobile-controls { display: none !important; }
         }
         @keyframes spin { 100% { transform: rotate(90deg); } }
@@ -70,127 +41,99 @@
 </head>
 <body>
 
-    <!-- PORTRAIT WARNING OVERLAY -->
+    <!-- PORTRAIT WARNING -->
     <div id="portrait-warning">
         <div style="font-size: 50px; margin-bottom: 20px; animation: spin 2s linear infinite;">🔄</div>
         <h2 class="text-2xl font-bold text-red-500 mb-2">ROTATE YOUR PHONE</h2>
-        <p class="text-gray-400">This game requires Landscape Mode to play.</p>
+        <p class="text-gray-400">Please play in Landscape Mode.</p>
     </div>
 
-    <!-- 1. LOADING SCREEN -->
+    <!-- LOADING SCREEN -->
     <div id="loading-screen" class="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-1000">
-        <h1 class="text-6xl font-horror text-red-600 mb-8 animate-pulse drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]">FOREST OF THE UNDEAD</h1>
-        <div class="w-96 bar-container h-4 rounded-full mb-4">
+        <h1 class="text-5xl font-horror text-red-600 mb-6 animate-pulse">FOREST OF THE UNDEAD</h1>
+        <div class="w-80 bar-container h-3 rounded-full mb-4">
             <div class="health-fill h-full w-[100%] rounded-full animate-pulse"></div>
         </div>
-        <p class="text-green-500 text-sm tracking-widest uppercase">Initializing WebGL Engine...</p>
-        
-        <!-- Adsterra Interstitial Ad Placeholder -->
-        <div class="mt-12 w-[300px] h-[250px] border border-gray-800 bg-gray-900 flex items-center justify-center rounded">
-            <span class="text-xs text-gray-600">Adsterra 300x250 Ad</span>
+        <p class="text-green-500 text-xs tracking-widest uppercase">Loading 3D Assets...</p>
+        <div class="mt-8 w-[250px] h-[200px] bg-gray-900 border border-gray-800 flex items-center justify-center rounded">
+            <span class="text-xs text-gray-600">Adsterra 250x200 Ad</span>
         </div>
     </div>
 
-    <!-- 2. MAIN MENU SCREEN -->
-    <div id="main-menu" class="absolute inset-0 z-40 bg-black/80 flex justify-between items-center px-10 hidden pointer-events-auto backdrop-blur-sm">
-        
-        <!-- Left Banner Ad -->
-        <div class="w-[160px] h-[600px] border border-green-900/30 bg-black/50 flex items-center justify-center rounded hidden md:flex">
-            <span class="text-xs text-gray-600 text-center">Adsterra<br>160x600</span>
-        </div>
-
-        <!-- Menu Center -->
+    <!-- MAIN MENU -->
+    <div id="main-menu" class="absolute inset-0 z-40 bg-black/80 flex justify-between items-center px-6 hidden pointer-events-auto backdrop-blur-sm">
+        <div class="w-[140px] h-[500px] bg-black/50 border border-green-900/30 flex items-center justify-center rounded hidden md:flex"><span class="text-xs text-gray-600">Adsterra</span></div>
         <div class="flex flex-col items-center flex-1">
-            <h1 class="text-5xl md:text-7xl font-horror text-red-600 mb-2 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)] text-center">FOREST OF THE UNDEAD</h1>
-            <p class="text-green-500 mb-10 tracking-widest text-sm md:text-lg">MULTIPLAYER SURVIVAL</p>
-
-            <div class="glass-panel p-6 md:p-8 rounded-xl w-80 md:w-96 flex flex-col gap-4">
-                <input type="text" id="player-name-input" placeholder="Enter Survivor Name" class="w-full bg-black/50 border border-green-900 p-3 rounded text-green-400 focus:outline-none focus:border-green-500 text-center text-lg font-bold">
-                
-                <button onclick="startGame()" class="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-4 rounded transition-all border border-red-500 uppercase tracking-widest shadow-[0_0_15px_rgba(220,38,38,0.4)]">
-                    Enter The Forest
-                </button>
+            <h1 class="text-5xl md:text-7xl font-horror text-red-600 mb-2 text-center drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]">FOREST OF THE UNDEAD</h1>
+            <p class="text-green-500 mb-8 tracking-widest text-sm">MULTIPLAYER SURVIVAL</p>
+            <div class="glass-panel p-6 rounded-xl w-80 md:w-96 flex flex-col gap-4">
+                <input type="text" id="player-name-input" placeholder="Enter Survivor Name" class="w-full bg-black/50 border border-green-900 p-3 rounded text-green-400 focus:outline-none text-center font-bold">
+                <button onclick="startGame()" class="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-3 rounded uppercase tracking-widest border border-red-500 shadow-lg">Enter The Forest</button>
             </div>
         </div>
-
-        <!-- Right Banner Ad -->
-        <div class="w-[160px] h-[600px] border border-green-900/30 bg-black/50 flex items-center justify-center rounded hidden md:flex">
-            <span class="text-xs text-gray-600 text-center">Adsterra<br>160x600</span>
-        </div>
+        <div class="w-[140px] h-[500px] bg-black/50 border border-green-900/30 flex items-center justify-center rounded hidden md:flex"><span class="text-xs text-gray-600">Adsterra</span></div>
     </div>
 
-    <!-- 3. IN-GAME HUD -->
+    <!-- IN-GAME HUD -->
     <div id="ui-layer" class="hidden flex-col justify-between">
-        
-        <!-- Top HUD -->
-        <div class="flex justify-between p-2 md:p-4 w-full">
-            <div class="glass-panel p-2 md:p-4 rounded-lg flex items-center gap-2 md:gap-4 w-48 md:w-80 pointer-events-auto">
-                <div class="w-10 h-10 md:w-16 md:h-16 bg-gray-800 rounded-full border-2 border-green-500 flex items-center justify-center text-xl md:text-3xl">🧔🏻‍♂️</div>
-                <div class="flex-1">
-                    <h2 id="hud-name" class="font-bold text-sm md:text-lg text-white mb-1 truncate">Survivor</h2>
-                    <div class="bar-container h-2 md:h-3 rounded-full mb-1">
-                        <div id="hud-health" class="health-fill h-full w-[100%] rounded-full shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
+        <div class="flex justify-between p-3 w-full">
+            <div class="glass-panel p-3 rounded-lg flex items-center gap-3 w-44 md:w-72">
+                <div class="w-10 h-10 md:w-12 md:h-12 bg-gray-800 rounded-full border border-green-500 flex items-center justify-center text-xl">🧔🏻‍♂️</div>
+                <div class="flex-1 overflow-hidden">
+                    <h2 id="hud-name" class="font-bold text-xs md:text-sm text-white truncate">Survivor</h2>
+                    <div class="bar-container h-2 rounded-full mt-1">
+                        <div id="hud-health" class="health-fill h-full w-[100%] rounded-full"></div>
                     </div>
                 </div>
             </div>
-
-            <!-- Mission Tracker (Hidden on small screens to save space) -->
-            <div class="glass-panel p-2 rounded-lg border-t-4 border-t-yellow-500 text-center w-[300px] hidden md:block">
-                <h3 class="text-xs text-gray-400 uppercase tracking-wider">Active Directive</h3>
-                <p class="text-yellow-400 font-bold text-base drop-shadow-md">Breach Castle & Find Queen</p>
+            <div class="glass-panel p-2 rounded-lg border-t-2 border-yellow-500 text-center hidden md:block">
+                <p class="text-[10px] text-gray-400 uppercase">Directive</p>
+                <p class="text-yellow-400 font-bold text-xs">Find & Slay the Zombie Queen</p>
             </div>
-
-            <div class="glass-panel p-2 md:p-4 rounded-lg w-40 md:w-64">
-                <h3 class="text-[10px] md:text-xs text-gray-400 uppercase tracking-wider mb-1 border-b border-gray-700 pb-1">Squad</h3>
-                <ul class="space-y-1 md:space-y-3" id="squad-list">
-                    <li class="flex items-center justify-between"><span class="text-green-400 text-xs md:text-sm">🟢 P1 (You)</span><div class="w-10 md:w-20 bar-container h-1 rounded"><div class="health-fill h-full w-[100%]"></div></div></li>
-                    <li class="flex items-center justify-between opacity-50"><span class="text-gray-400 text-[10px] md:text-sm truncate">Waiting...</span></li>
+            <div class="glass-panel p-3 rounded-lg w-36 md:w-56">
+                <h3 class="text-[10px] text-gray-400 uppercase border-b border-gray-700 pb-1 mb-1">Squad</h3>
+                <ul class="space-y-1 text-[11px]" id="squad-list">
+                    <li class="text-green-400">🟢 P1 (You)</li>
                 </ul>
             </div>
         </div>
 
-        <!-- Center Crosshair -->
         <div class="flex-1 flex items-center justify-center relative">
             <div class="w-1.5 h-1.5 bg-white rounded-full opacity-70"></div>
-            <div class="absolute w-6 h-6 md:w-8 md:h-8 border border-white/30 rounded-full"></div>
+            <div class="absolute w-6 h-6 border border-white/30 rounded-full"></div>
         </div>
 
-        <!-- Bottom HUD -->
-        <div class="flex justify-between items-end p-2 md:p-4 w-full">
+        <div class="flex justify-between items-end p-3 w-full">
+            <div class="glass-panel p-2 rounded-lg w-44 md:w-72 h-28 md:h-36 flex flex-col pointer-events-auto">
+                <div id="chat-messages" class="flex-1 overflow-y-auto text-[10px] space-y-1">
+                    <p class="text-blue-400">[System] Welcome to the Forest.</p>
+                </div>
+                <input type="text" id="chat-input" placeholder="Chat..." class="bg-black/50 border border-gray-700 text-white text-[10px] p-1 rounded mt-1 focus:outline-none">
+            </div>
             
-            <div class="glass-panel p-2 rounded-lg w-48 md:w-80 h-32 md:h-48 flex flex-col pointer-events-auto">
-                <div id="chat-messages" class="flex-1 overflow-y-auto p-1 md:p-2 text-[10px] md:text-xs space-y-1 font-sans">
-                    <p><span class="text-blue-400">[System]</span> Welcome to the Undead Forest.</p>
-                </div>
-                <input type="text" id="chat-input" placeholder="Chat..." class="bg-black/50 border border-gray-700 text-white text-[10px] md:text-xs p-1 md:p-2 rounded mt-1 focus:outline-none focus:border-green-500">
+            <div class="hidden md:flex bg-black border border-gray-800 w-[600px] h-[70px] items-center justify-center rounded">
+                <span class="text-xs text-gray-600">Adsterra 728x90 Footer Banner</span>
             </div>
 
-            <!-- Adsterra Footer Ad -->
-            <div class="hidden md:flex flex-col items-center gap-4 pointer-events-auto">
-                <div class="w-[728px] h-[90px] border border-gray-800 bg-black flex items-center justify-center rounded">
-                    <span class="text-sm text-gray-500">Adsterra 728x90 Footer Banner</span>
-                </div>
-            </div>
-
-            <div class="glass-panel p-2 md:p-4 rounded-lg text-right min-w-[120px] md:min-w-[200px]">
-                <p class="text-gray-400 text-[10px] md:text-xs">Ammunition</p>
-                <p class="text-xl md:text-4xl font-bold text-white font-mono">30 <span class="text-xs md:text-lg text-gray-500">/ 120</span></p>
-                <div id="kill-feed" class="mt-2 text-[10px] md:text-xs text-gray-400 space-y-1 font-bold"></div>
+            <div class="glass-panel p-3 rounded-lg text-right">
+                <p class="text-gray-400 text-[10px]">Ammo</p>
+                <p class="text-xl md:text-3xl font-bold font-mono">30 <span class="text-xs text-gray-500">/ 120</span></p>
+                <div id="kill-feed" class="text-[10px] text-gray-400 space-y-0.5"></div>
             </div>
         </div>
     </div>
 
-    <!-- 4. BOSS FIGHT OVERLAY -->
-    <div id="boss-ui" class="absolute top-10 left-1/2 transform -translate-x-1/2 w-3/4 md:w-1/2 hidden z-20">
-        <h2 class="text-center text-red-500 font-horror text-2xl md:text-3xl tracking-widest mb-1 drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]">THE ZOMBIE QUEEN</h2>
-        <div class="bar-container h-3 md:h-4 rounded border-2 border-red-900 shadow-[0_0_20px_rgba(255,0,0,0.4)]">
+    <!-- BOSS UI -->
+    <div id="boss-ui" class="absolute top-6 left-1/2 -translate-x-1/2 w-1/2 hidden z-20">
+        <h2 class="text-center text-red-500 font-horror text-xl tracking-widest mb-1">THE ZOMBIE QUEEN</h2>
+        <div class="bar-container h-3 rounded border border-red-900">
             <div id="boss-health" class="bg-red-600 h-full w-[100%] transition-all"></div>
         </div>
     </div>
 
-    <!-- 5. MOBILE TOUCH CONTROLS -->
+    <!-- MOBILE CONTROLS -->
     <div id="mobile-controls" class="absolute inset-0 z-30 pointer-events-none hidden">
-        <div class="absolute bottom-8 left-4 flex flex-col items-center gap-1 pointer-events-auto">
+        <div class="absolute bottom-6 left-4 flex flex-col items-center gap-1 pointer-events-auto">
             <button id="btn-up" class="touch-btn w-12 h-12">▲</button>
             <div class="flex gap-1">
                 <button id="btn-left" class="touch-btn w-12 h-12">◀</button>
@@ -198,54 +141,33 @@
                 <button id="btn-right" class="touch-btn w-12 h-12">▶</button>
             </div>
         </div>
-        
-        <!-- Swipe to look area -->
         <div id="touch-look-area" class="absolute top-10 right-0 w-[50vw] h-[70vh] pointer-events-auto"></div>
-
-        <div class="absolute bottom-8 right-6 flex flex-col gap-3 pointer-events-auto items-end">
+        <div class="absolute bottom-6 right-6 flex flex-col gap-2 pointer-events-auto items-end">
             <button id="btn-jump" class="touch-btn w-10 h-10 text-[10px]">JUMP</button>
-            <button id="btn-shoot" class="w-16 h-16 bg-red-700/80 rounded-full border-2 border-red-500 text-white font-bold shadow-[0_0_15px_rgba(220,38,38,0.6)] active:bg-red-500 user-select-none">SHOOT</button>
+            <button id="btn-shoot" class="w-14 h-14 bg-red-700/80 rounded-full border border-red-500 text-white font-bold active:bg-red-500 shadow-lg">FIRE</button>
         </div>
     </div>
 
-    <!-- Damage Red Flash -->
     <div id="damage-flash" class="damage-overlay"></div>
-
-    <!-- 6. 3D RENDER CANVAS -->
     <div id="game-canvas"></div>
 
-    <!-- UI & Fullscreen Logic Script -->
     <script>
-        // Simulate Loading Screen
         setTimeout(() => {
             document.getElementById('loading-screen').classList.add('opacity-0');
-            setTimeout(() => {
-                document.getElementById('loading-screen').classList.add('hidden');
-                document.getElementById('main-menu').classList.remove('hidden');
-            }, 1000);
-        }, 1500);
+            setTimeout(() => { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('main-menu').classList.remove('hidden'); }, 1000);
+        }, 1200);
 
-        // Start Game & Force Fullscreen
         function startGame() {
-            // Request Fullscreen
             const elem = document.documentElement;
-            if (elem.requestFullscreen) elem.requestFullscreen().catch(e => console.log(e));
-            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen().catch(e => console.log(e));
+            if (elem.requestFullscreen) elem.requestFullscreen().catch(e => {});
+            if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(e => {});
 
-            // Lock Landscape
-            if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(e => console.log("Orientation lock not supported"));
-            }
-
-            // Normal Init
             const name = document.getElementById('player-name-input').value || 'Hero';
             document.getElementById('hud-name').innerText = name;
-            
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('ui-layer').classList.remove('hidden');
             document.getElementById('ui-layer').classList.add('flex');
-            
-            // Show Mobile Controls if touch supported
+
             const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
             if (isMobile) {
                 document.getElementById('mobile-controls').classList.remove('hidden');
@@ -260,24 +182,21 @@
             }
         }
 
-        // Chat Box Enter Key Logic
         document.getElementById('chat-input').addEventListener('keypress', function(e) {
             if(e.key === 'Enter' && this.value.trim() !== '') {
-                const chatBox = document.getElementById('chat-messages');
-                const pName = document.getElementById('hud-name').innerText;
-                chatBox.innerHTML += `<p><span class="text-green-400">[${pName}]</span> ${this.value}</p>`;
-                this.value = '';
-                chatBox.scrollTop = chatBox.scrollHeight;
+                const box = document.getElementById('chat-messages');
+                box.innerHTML += `<p class="text-green-400">[You] ${this.value}</p>`;
+                this.value = ''; box.scrollTop = box.scrollHeight;
             }
         });
     </script>
 
-    <!-- MODULE INCLUDES (Strict Order!) -->
+    <!-- MODULE INCLUDES -->
     <script src="main.js"></script>
     <script src="environment.js"></script>
     <script src="playerControls.js"></script>
     <script src="enemyAI.js"></script>
     <script src="multiplayer.js"></script>
-
 </body>
 </html>
+
