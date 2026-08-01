@@ -1,246 +1,315 @@
 // ==========================================
-// enemyAI.js - ZOMBIE SPAWNING, PATHFINDING & BOSS FIGHT
+// enemyAI.js - GOD LEVEL AI (SWARM, STATES & ANIMATIONS)
 // ==========================================
 
-window.zombies = []; // Zombie logic objects store karne ke liye
-window.zombieMeshes = []; // Raycaster (Shooting) ke liye sirf meshes
+window.zombies = [];
+window.zombieMeshes = [];
 window.bossActive = false;
 window.bossEntity = null;
 
-// ==========================================
-// 1. ZOMBIE CLASS SETUP
-// ==========================================
 class Zombie {
     constructor(x, z, isBoss = false) {
         this.isBoss = isBoss;
-        this.health = isBoss ? 2000 : 100;
+        this.health = isBoss ? 2500 : 100;
         this.maxHealth = this.health;
-        this.speed = isBoss ? 3.5 : 1.5 + Math.random(); // Boss is faster, normal zombies have random speeds
-        this.attackDamage = isBoss ? 25 : 10;
-        this.attackRange = isBoss ? 3.0 : 1.8;
+        this.baseSpeed = isBoss ? 2.5 : 1.2 + (Math.random() * 0.8);
+        this.currentSpeed = this.baseSpeed;
+        this.attackDamage = isBoss ? 35 : 15;
+        this.attackRange = this.isBoss ? 3.5 : 2.0;
+        
+        // AI States
+        this.state = 'idle'; // idle, chase, attack, stun, dead
+        this.stunTimer = 0;
         this.attackCooldown = 0;
-        this.isDead = false;
+        this.isEnraged = false; // Boss only
+        
+        // Animation
+        this.mixer = null;
+        this.animations = {};
+        this.currentAction = null;
 
         this.createMesh(x, z);
     }
 
     createMesh(x, z) {
-        // Base shape for Zombie (Cylinder looks slightly better than a plain box for enemies)
-        const radius = this.isBoss ? 1.2 : 0.6;
-        const height = this.isBoss ? 3.5 : 1.8;
-        
-        const geo = new THREE.CylinderGeometry(radius, radius, height, 8);
-        
-        // Colors: Sickly Green for normal, Blood Red / Black for Boss
-        const colorHex = this.isBoss ? 0x8b0000 : 0x2d4c1e;
-        const mat = new THREE.MeshStandardMaterial({ 
-            color: colorHex, 
-            roughness: 0.8,
-            metalness: this.isBoss ? 0.3 : 0.0 
-        });
-
+        // Fallback Hitbox
+        const geo = new THREE.CylinderGeometry(this.isBoss ? 1.5 : 0.6, this.isBoss ? 1.5 : 0.6, this.isBoss ? 3.5 : 1.8, 8);
+        const mat = new THREE.MeshBasicMaterial({ color: this.isBoss ? 0xff0000 : 0x2d4c1e, wireframe: true, visible: false });
         this.mesh = new THREE.Mesh(geo, mat);
-        this.mesh.position.set(x, height / 2, z);
-        this.mesh.castShadow = true;
-        this.mesh.receiveShadow = true;
-
-        // Save reference to this class instance in the mesh for raycaster damage
-        this.mesh.userData = { parent: this, takeDamage: (amt) => this.takeDamage(amt) };
-
+        this.mesh.position.set(x, this.isBoss ? 1.75 : 0.9, z);
+        
+        // Store reference for raycaster
+        this.mesh.userData = { parent: this, takeDamage: (amt, direction) => this.takeDamage(amt, direction) };
         window.scene.add(this.mesh);
         window.zombieMeshes.push(this.mesh);
+
+        // Load Real 3D Model
+        if (window.gltfLoader) {
+            const file = this.isBoss ? 'boss.glb' : 'zombie.glb';
+            window.gltfLoader.load(file, (gltf) => {
+                const model = gltf.scene;
+                model.scale.setScalar(this.isBoss ? 2.2 : 1.0);
+                
+                // Fix orientation if model faces wrong way
+                model.position.y = this.isBoss ? -1.75 : -0.9; 
+                
+                // Shadows
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                this.mesh.add(model);
+
+                // Animations Setup
+                if (gltf.animations && gltf.animations.length > 0) {
+                    this.mixer = new THREE.AnimationMixer(model);
+                    // Assume index 0: Walk/Run, Index 1: Attack, Index 2: Death (fallback to index 0 if not exist)
+                    this.animations.walk = this.mixer.clipAction(gltf.animations[0]);
+                    this.animations.attack = this.mixer.clipAction(gltf.animations[1] || gltf.animations[0]);
+                    this.animations.death = this.mixer.clipAction(gltf.animations[2] || gltf.animations[0]);
+                    
+                    this.animations.death.clampWhenFinished = true;
+                    this.animations.death.loop = THREE.LoopOnce;
+                    
+                    this.playAnimation('walk');
+                }
+            }, undefined, (err) => console.warn("Model missing, using invisible hitbox", err));
+        }
     }
 
-    takeDamage(amount) {
-        if (this.isDead) return;
-
-        this.health -= amount;
+    playAnimation(name) {
+        if (!this.mixer || !this.animations[name]) return;
         
-        // Flash Effect (White when hit)
-        const originalColor = this.mesh.material.color.getHex();
-        this.mesh.material.color.setHex(0xffffff);
-        setTimeout(() => {
-            if (!this.isDead) this.mesh.material.color.setHex(originalColor);
-        }, 100);
+        const action = this.animations[name];
+        if (this.currentAction === action) return; // Already playing
+        
+        if (this.currentAction) {
+            this.currentAction.fadeOut(0.3); // Crossfade for AAA smooth transition
+        }
+        
+        action.reset();
+        action.fadeIn(0.3);
+        action.play();
+        this.currentAction = action;
+    }
 
-        // Update Boss UI if it's the Queen
-        if (this.isBoss) {
-            updateBossUI(this.health, this.maxHealth);
-            
-            // Enrage Mechanics: Spawn minions at certain health thresholds
-            if (this.health % 500 === 0) {
-                spawnZombies(3, this.mesh.position.x, this.mesh.position.z + 5);
-            }
+    takeDamage(amt, hitDirection = new THREE.Vector3(0,0,0)) {
+        if (this.state === 'dead') return;
+
+        this.health -= amt;
+        
+        // Visual Hit Flash
+        if (this.mesh.children.length > 0) {
+            this.mesh.children[0].traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const origColor = child.material.color.getHex();
+                    child.material.color.setHex(0xffffff);
+                    setTimeout(() => { if(this.state !== 'dead') child.material.color.setHex(origColor); }, 100);
+                }
+            });
         }
 
         if (this.health <= 0) {
             this.die();
-        }
-    }
-
-    die() {
-        this.isDead = true;
-        
-        // Fall down animation logic (handled in update loop)
-        this.mesh.userData.isDying = true;
-        
-        // Remove from targeting array immediately so player can't shoot a dead body
-        const index = window.zombieMeshes.indexOf(this.mesh);
-        if (index > -1) window.zombieMeshes.splice(index, 1);
-
-        if (this.isBoss) {
-            window.bossActive = false;
-            // Hide Boss UI
-            document.getElementById('boss-ui').classList.add('hidden');
-            // Trigger Victory
-            if (window.logAction) window.logAction("QUEEN DEFEATED! HUMANITY SAVED!", "text-yellow-400 font-bold text-xl");
-        } else {
-            if (window.logAction) window.logAction("Zombie Killed", "text-gray-500");
-        }
-
-        // Cleanup mesh after 3 seconds
-        setTimeout(() => {
-            window.scene.remove(this.mesh);
-        }, 3000);
-    }
-
-    update(delta, playerPos) {
-        if (this.isDead) {
-            // Death Animation: Fall over
-            if (this.mesh.rotation.x < Math.PI / 2) {
-                this.mesh.rotation.x += delta * 3;
-                this.mesh.position.y -= delta * 2;
-            }
             return;
         }
 
-        // AI PATHFINDING: Move towards player
+        // Boss Enrage Mechanic
+        if (this.isBoss && this.health < this.maxHealth * 0.5 && !this.isEnraged) {
+            this.enrage();
+        }
+
+        // Stun & Knockback Mechanics (Only for normal zombies to make them feel meaty)
+        if (!this.isBoss && Math.random() > 0.3) {
+            this.state = 'stun';
+            this.stunTimer = 0.5; // Stunned for half a second
+            this.playAnimation('idle'); // Pause walk animation
+            
+            // Push back slightly opposite to camera view
+            if (window.camera) {
+                const pushDir = new THREE.Vector3(0,0,-1).applyQuaternion(window.camera.quaternion).normalize();
+                this.mesh.position.addScaledVector(pushDir, -0.5);
+            }
+        }
+
+        // Update Boss UI
+        if (this.isBoss) {
+            document.getElementById('boss-ui').classList.remove('hidden');
+            document.getElementById('boss-health').style.width = Math.max(0, (this.health / this.maxHealth) * 100) + '%';
+        }
+    }
+
+    enrage() {
+        this.isEnraged = true;
+        this.currentSpeed = this.baseSpeed * 1.8;
+        this.attackDamage = 50;
+        
+        if (window.logAction) window.logAction("QUEEN IS ENRAGED!", "text-red-500 font-black");
+        
+        // Add a red glow to boss
+        const glow = new THREE.PointLight(0xff0000, 2, 10);
+        this.mesh.add(glow);
+
+        // Spawn minions
+        spawnHorde(4, this.mesh.position.x, this.mesh.position.z + 5);
+    }
+
+    die() {
+        this.state = 'dead';
+        this.health = 0;
+        this.playAnimation('death');
+        
+        // Remove from targetable arrays immediately
+        const idx = window.zombieMeshes.indexOf(this.mesh);
+        if (idx > -1) window.zombieMeshes.splice(idx, 1);
+        
+        if (this.isBoss) {
+            document.getElementById('boss-ui').classList.add('hidden');
+            if (window.logAction) window.logAction("BOSS DEFEATED! YOU SURVIVED.", "text-yellow-400 font-bold");
+        } else {
+            if (window.logAction) window.logAction("Kill confirmed.", "text-gray-500");
+        }
+
+        // Fallback visual if no animation
+        if (!this.mixer) {
+            this.mesh.rotation.x = -Math.PI / 2;
+            this.mesh.position.y = 0.1;
+        }
+
+        // Sink into ground & remove after 5 seconds
+        setTimeout(() => {
+            const sinkInterval = setInterval(() => {
+                this.mesh.position.y -= 0.05;
+                if (this.mesh.position.y < -3) {
+                    clearInterval(sinkInterval);
+                    window.scene.remove(this.mesh);
+                }
+            }, 50);
+        }, 5000);
+    }
+
+    update(delta, playerPos) {
+        if (this.state === 'dead') {
+            if (this.mixer) this.mixer.update(delta);
+            return;
+        }
+
+        // Handle Stun State
+        if (this.state === 'stun') {
+            this.stunTimer -= delta;
+            if (this.stunTimer <= 0) {
+                this.state = 'chase';
+                this.playAnimation('walk');
+            }
+            if (this.mixer) this.mixer.update(delta);
+            return;
+        }
+
+        // Calculate Distance to Player
         const dx = playerPos.x - this.mesh.position.x;
         const dz = playerPos.z - this.mesh.position.z;
-        const distance = Math.sqrt(dx * dx + dz * dz);
+        const distanceToPlayer = Math.sqrt(dx*dx + dz*dz);
+        
+        // Face Player (Smooth rotation)
+        const targetRot = Math.atan2(dx, dz);
+        // Simple smoothing for rotation
+        let angleDiff = targetRot - this.mesh.rotation.y;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        this.mesh.rotation.y += angleDiff * 5 * delta;
 
-        // Turn to face player (Lock Y axis so they don't tilt up/down)
-        const targetPos = playerPos.clone();
-        targetPos.y = this.mesh.position.y; 
-        this.mesh.lookAt(targetPos);
+        // FSM Logic
+        if (distanceToPlayer > this.attackRange) {
+            this.state = 'chase';
+            this.playAnimation('walk');
 
-        // If player is out of reach, move closer
-        if (distance > this.attackRange) {
-            // Normalize direction vector
-            const dirX = dx / distance;
-            const dirZ = dz / distance;
+            // --- SWARM INTELLIGENCE (SEPARATION) ---
+            let separationX = 0, separationZ = 0;
+            let neighbors = 0;
+            
+            // Loop through other zombies to push away if too close
+            for (let i = 0; i < window.zombies.length; i++) {
+                const other = window.zombies[i];
+                if (other === this || other.state === 'dead') continue;
+                
+                const ox = this.mesh.position.x - other.mesh.position.x;
+                const oz = this.mesh.position.z - other.mesh.position.z;
+                const distSq = ox*ox + oz*oz;
+                
+                if (distSq < 4.0) { // If closer than 2 meters
+                    separationX += ox;
+                    separationZ += oz;
+                    neighbors++;
+                }
+            }
+            
+            // Apply Movement (Chase + Separation)
+            let moveDirX = (dx / distanceToPlayer);
+            let moveDirZ = (dz / distanceToPlayer);
 
-            this.mesh.position.x += dirX * this.speed * delta;
-            this.mesh.position.z += dirZ * this.speed * delta;
-        } 
-        // If close enough, ATTACK!
-        else {
+            if (neighbors > 0) {
+                moveDirX += (separationX / neighbors) * 1.5;
+                moveDirZ += (separationZ / neighbors) * 1.5;
+                // Normalize combined vector
+                const mag = Math.sqrt(moveDirX*moveDirX + moveDirZ*moveDirZ);
+                moveDirX /= mag;
+                moveDirZ /= mag;
+            }
+
+            this.mesh.position.x += moveDirX * this.currentSpeed * delta;
+            this.mesh.position.z += moveDirZ * this.currentSpeed * delta;
+
+        } else {
+            this.state = 'attack';
+            this.playAnimation('attack');
+            
             if (this.attackCooldown <= 0) {
-                this.attackPlayer();
-                this.attackCooldown = 1.5; // Attack every 1.5 seconds
+                if (window.takeDamage) window.takeDamage(this.attackDamage);
+                this.attackCooldown = this.isEnraged ? 0.8 : 1.5; // Faster attack when enraged
             }
         }
 
-        if (this.attackCooldown > 0) {
-            this.attackCooldown -= delta;
-        }
-    }
-
-    attackPlayer() {
-        // Attack Animation: Slight lunge forward
-        this.mesh.position.add(this.mesh.getWorldDirection(new THREE.Vector3()).multiplyScalar(0.5));
-        setTimeout(() => {
-            if (!this.isDead) this.mesh.position.add(this.mesh.getWorldDirection(new THREE.Vector3()).multiplyScalar(-0.5));
-        }, 200);
-
-        // Call global takeDamage function (located in playerControls.js)
-        if (window.takeDamage) {
-            window.takeDamage(this.attackDamage);
-            if (this.isBoss) {
-                if (window.logAction) window.logAction("Queen hit you!", "text-red-500 font-bold");
-            }
-        }
+        if (this.attackCooldown > 0) this.attackCooldown -= delta;
+        if (this.mixer) this.mixer.update(delta);
     }
 }
 
 // ==========================================
-// 2. SPAWN LOGIC
+// SPAWN & UPDATE LOGIC
 // ==========================================
-
-function spawnZombies(count, centerX = 0, centerZ = -30, radius = 40) {
-    for (let i = 0; i < count; i++) {
-        // Random position within radius
-        const angle = Math.random() * Math.PI * 2;
-        const r = Math.random() * radius;
-        const x = centerX + Math.cos(angle) * r;
-        const z = centerZ + Math.sin(angle) * r;
-
-        // Avoid spawning too close to the player spawn (0,0)
-        if (Math.abs(x) < 10 && Math.abs(z) < 10) continue;
-
-        const zombie = new Zombie(x, z, false);
-        window.zombies.push(zombie);
-    }
-    console.log(`${count} Zombies spawned!`);
-}
-
-function spawnZombieQueen() {
-    if (window.bossEntity) return; // Only one queen allowed
-    
-    // Spawn in the throne room (defined in environment.js at z: -140)
-    window.bossEntity = new Zombie(0, -135, true);
-    window.zombies.push(window.bossEntity);
-    window.bossActive = true;
-
-    // Show Boss Health UI
-    document.getElementById('boss-ui').classList.remove('hidden');
-    updateBossUI(window.bossEntity.health, window.bossEntity.maxHealth);
-
-    if (window.logAction) window.logAction("THE ZOMBIE QUEEN AWAKENS!", "text-red-600 font-black text-lg");
-}
-
-function updateBossUI(current, max) {
-    const healthBar = document.getElementById('boss-health');
-    if (healthBar) {
-        const percentage = Math.max(0, (current / max) * 100);
-        healthBar.style.width = percentage + '%';
+function spawnHorde(count = 15, cx = 0, cz = -40) {
+    for(let i=0; i<count; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let radius = 10 + Math.random() * 20;
+        window.zombies.push(new Zombie(cx + Math.cos(angle)*radius, cz + Math.sin(angle)*radius, false));
     }
 }
-
-// ==========================================
-// 3. MAIN UPDATE LOOP (Called from main.js)
-// ==========================================
 
 window.updateEnemies = function(delta) {
     if (!window.camera || !window.gameActive) return;
-
-    const playerPos = window.camera.position;
-
-    // Check if player entered the Castle area to trigger Boss Fight
-    if (!window.bossActive && !window.bossEntity && playerPos.z < -90 && Math.abs(playerPos.x) < 20) {
-        spawnZombieQueen();
+    
+    const pPos = window.camera.position;
+    
+    // Trigger Boss Fight when approaching the castle
+    if (!window.bossActive && pPos.z < -80 && Math.abs(pPos.x) < 30) {
+        window.bossActive = true;
+        window.bossEntity = new Zombie(0, -120, true);
+        window.zombies.push(window.bossEntity);
+        if (window.logAction) window.logAction("THE ZOMBIE QUEEN APPROACHES!", "text-red-500 font-bold text-lg");
     }
 
-    // Loop through all zombies and update their AI
+    // Update all living zombies, cleanup dead ones out of logic array
     for (let i = window.zombies.length - 1; i >= 0; i--) {
         const z = window.zombies[i];
-        z.update(delta, playerPos);
-
-        // Remove fully dead zombies from logic array after 3 seconds
-        if (z.isDead && !z.mesh.parent) {
+        z.update(delta, pPos);
+        
+        if (z.state === 'dead' && !z.mesh.parent) {
             window.zombies.splice(i, 1);
         }
     }
 };
 
-// ==========================================
-// INITIAL SETUP DELAY
-// ==========================================
-// Wait for scene to be ready before spawning initial horde
-setTimeout(() => {
-    if (window.scene) {
-        // Spawn 30 zombies in the forest initially
-        spawnZombies(30, 0, -50, 60);
-    }
-}, 1000);
-
+// Spawn initial wave after a short delay
+setTimeout(() => { if (window.scene) spawnHorde(); }, 1500);
