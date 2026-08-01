@@ -62,4 +62,3 @@ function addAtmosphericLights() {
     window.scene.add(bossLight);
 }
 
-setTimeout(() => { if (window.scene) buildEnvironment(); }, 300);
