@@ -312,4 +312,3 @@ window.updateEnemies = function(delta) {
 };
 
 // Spawn initial wave after a short delay
-setTimeout(() => { if (window.scene) spawnHorde(); }, 1500);
