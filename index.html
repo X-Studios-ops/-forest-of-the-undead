@@ -6,23 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Project: NIGHTFALL (RE x MW)</title>
     
-    <!-- Tailwind CSS (CDN for quick styling, Vercel handle kar lega) -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Fonts: Tactical (Rajdhani) & Horror (Nosifer) -->
     <link href="https://fonts.googleapis.com/css2?family=Nosifer&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
-    <!-- ES Module Shims for older browsers -->
-<script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
 
-<!-- Import Map to tell browser where "three" is -->
-<script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-    }
-  }
-</script>
+    <!-- ES Module Shims & Import Map (FIX FOR MODULE NOT FOUND ERROR) -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
 
+    <!-- Mobile Developer Console (Uncomment below lines if you want to see errors on phone) -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/eruda"></script> -->
+    <!-- <script>eruda.init();</script> -->
 
     <style>
         body {
@@ -33,6 +36,23 @@
             -webkit-user-select: none;
             -webkit-touch-callout: none;
             font-family: 'Rajdhani', sans-serif;
+        }
+
+        /* FORCE LANDSCAPE MODE */
+        @media screen and (orientation: portrait) {
+            #portrait-warning { display: flex !important; }
+            #game-canvas, #game-hud, #mobile-controls, #main-menu, #loading-screen { display: none !important; }
+        }
+        #portrait-warning { 
+            display: none; 
+            position: fixed; 
+            inset: 0; 
+            background: black; 
+            z-index: 99999; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            text-align: center; 
         }
 
         /* Resident Evil Vibe: Dark Vignette on the edges */
@@ -99,14 +119,17 @@
         /* ThreeJS Canvas container */
         #game-canvas { position: absolute; inset: 0; z-index: 1; }
     </style>
-    <!-- Mobile Developer Console (Eruda) -->
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
-
 </head>
 <body>
 
-    <!-- 1. LOADING SCREEN (Tactical/Dark) -->
+    <!-- 0. PORTRAIT WARNING -->
+    <div id="portrait-warning">
+        <h1 class="text-4xl font-bold text-red-600 mb-4" style="font-family: 'Nosifer', cursive;">ROTATE DEVICE</h1>
+        <p class="text-gray-400 tracking-widest uppercase">Tactical operations require Landscape Mode.</p>
+        <div class="mt-8 animate-pulse text-6xl">🔄</div>
+    </div>
+
+    <!-- 1. LOADING SCREEN -->
     <div id="loading-screen" class="absolute inset-0 bg-black z-[100] flex flex-col items-center justify-center transition-opacity duration-700">
         <h1 class="text-4xl text-red-700 mb-2" style="font-family: 'Nosifer', cursive;">NIGHTFALL</h1>
         <p class="text-gray-400 tracking-[0.3em] text-sm mb-8 animate-pulse">INITIATING TACTICAL PROTOCOL</p>
@@ -120,7 +143,7 @@
         <h1 class="text-5xl md:text-7xl text-white font-bold tracking-wider mb-2">OPERATION <span class="text-red-600">NIGHTFALL</span></h1>
         <p class="text-gray-400 mb-12 tracking-widest uppercase text-sm">Survival x Warfare</p>
         
-        <button id="btn-deploy" class="px-12 py-3 bg-white/10 hover:bg-white/20 border border-white/30 text-white font-bold text-xl uppercase tracking-widest transition-all">
+        <button id="btn-deploy" class="px-12 py-3 bg-white/10 hover:bg-white/20 border border-white/30 text-white font-bold text-xl uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,255,255,0.2)]">
             Deploy
         </button>
     </div>
@@ -134,7 +157,7 @@
                 <p class="text-[10px] text-gray-400 uppercase tracking-wider">Current Objective</p>
                 <p class="text-white font-bold text-sm">SURVIVE THE HORDE</p>
             </div>
-            <!-- Placeholder for Minimap (MW Style) -->
+            <!-- Placeholder for Minimap -->
             <div class="w-24 h-24 bg-green-900/30 border border-green-500/50 rounded-full shadow-[0_0_15px_rgba(34,197,94,0.2)]"></div>
         </div>
 
@@ -145,7 +168,7 @@
             <div class="ch-line ch-left"></div>
             <div class="ch-line ch-right"></div>
             <div class="ch-dot"></div>
-            <!-- Hitmarker SVG (Flashes on hit) -->
+            <!-- Hitmarker SVG -->
             <svg id="hitmarker-ui" class="hitmarker w-8 h-8 absolute -top-1 -left-1" viewBox="0 0 100 100">
                 <line x1="20" y1="20" x2="40" y2="40" stroke="white" stroke-width="4"/>
                 <line x1="80" y1="20" x2="60" y2="40" stroke="white" stroke-width="4"/>
@@ -156,39 +179,42 @@
 
         <!-- Bottom: Health (RE) & Ammo (MW) -->
         <div class="flex justify-between items-end w-full">
-            <!-- Health Status (ECG or Text) -->
             <div class="flex items-center gap-3">
                 <div class="w-12 h-12 rounded-full border-2 border-green-500 flex items-center justify-center bg-green-900/20 shadow-[0_0_10px_rgba(34,197,94,0.5)]">
-                    <span class="text-green-400 font-bold">FINE</span>
+                    <span class="text-green-400 font-bold text-xs">FINE</span>
                 </div>
-                <div class="w-40 h-2 bg-gray-800 rounded-r-full overflow-hidden">
+                <div class="w-32 md:w-40 h-2 bg-gray-800 rounded-r-full overflow-hidden">
                     <div id="health-bar" class="w-full h-full bg-green-500"></div>
                 </div>
             </div>
 
-            <!-- Ammo Counter -->
             <div class="text-right">
-                <p class="text-gray-400 text-xs uppercase tracking-widest mb-1">Assault Rifle</p>
+                <p class="text-gray-400 text-[10px] md:text-xs uppercase tracking-widest mb-1">Assault Rifle</p>
                 <div class="flex items-baseline gap-1">
-                    <span id="ammo-current" class="text-5xl text-white font-bold">30</span>
-                    <span class="text-2xl text-gray-500">/</span>
-                    <span id="ammo-reserve" class="text-xl text-gray-400">120</span>
+                    <span id="ammo-current" class="text-4xl md:text-5xl text-white font-bold">30</span>
+                    <span class="text-xl md:text-2xl text-gray-500">/</span>
+                    <span id="ammo-reserve" class="text-lg md:text-xl text-gray-400">120</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 4. MOBILE CONTROLS (Hidden by default on PC) -->
+    <!-- 4. MOBILE CONTROLS -->
     <div id="mobile-controls" class="absolute inset-0 z-40 hidden pointer-events-none">
+        
         <!-- Left Side: Movement Joystick Area -->
         <div id="left-joystick-zone" class="touch-zone pointer-events-auto rounded-xl"></div>
         
         <!-- Right Side: Aim Area & Buttons -->
         <div id="right-aim-zone" class="touch-zone pointer-events-auto rounded-xl">
+            <!-- Action Buttons -->
             <button id="btn-shoot" class="action-btn absolute bottom-0 right-0 w-20 h-20 bg-red-600/30 border-red-500 text-xl shadow-[0_0_15px_rgba(220,38,38,0.5)]">FIRE</button>
-            <button id="btn-ads" class="action-btn absolute bottom-24 right-16 w-14 h-14">ADS</button>
-            <button id="btn-jump" class="action-btn absolute bottom-8 right-24 w-12 h-12 text-sm">JMP</button>
-            <button id="btn-crouch" class="action-btn absolute bottom-24 right-0 w-12 h-12 text-sm">CRCH</button>
+            <button id="btn-ads" class="action-btn absolute bottom-24 right-16 w-14 h-14 text-xs">ADS</button>
+            <button id="btn-crouch" class="action-btn absolute bottom-24 right-0 w-12 h-12 text-[10px]">CRCH</button>
+            <button id="btn-jump" class="action-btn absolute bottom-8 right-24 w-12 h-12 text-[10px]">JMP</button>
+            
+            <!-- NEW: Reload Button -->
+            <button id="btn-reload" class="action-btn absolute bottom-36 right-4 w-12 h-12 text-[10px] text-blue-400 border-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.3)]">RLD</button>
         </div>
     </div>
 
@@ -196,16 +222,15 @@
     <div class="horror-vignette"></div>
     <div id="damage-flash" class="damage-overlay"></div>
 
-    <!-- The 3D Canvas Container -->
+    <!-- 3D Canvas -->
     <div id="game-canvas"></div>
 
-    <!-- MAIN LOGIC (Vite uses type="module") -->
-    <!-- GitHub/Vercel setup ke liye hamesha module use karna -->
+    <!-- MAIN LOGIC -->
     <script type="module" src="/main.js"></script>
 
-    <!-- Basic UI Toggle Logic -->
+    <!-- UI Logic -->
     <script>
-        // Simulate loading time
+        // Loading sequence
         setTimeout(() => {
             document.getElementById('loading-bar').style.width = '100%';
             setTimeout(() => {
@@ -215,20 +240,23 @@
             }, 500);
         }, 1500);
 
+        // Deploy Button Logic
         document.getElementById('btn-deploy').addEventListener('click', () => {
+            // Fullscreen attempt for better immersion
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch((e) => console.log(e));
+            }
+            
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('game-hud').classList.remove('hidden');
             document.getElementById('game-hud').classList.add('flex');
             
-            // Check if mobile device to show touch controls
             if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
                 document.getElementById('mobile-controls').classList.remove('hidden');
             } else {
-                // Request pointer lock for PC
                 document.body.requestPointerLock();
             }
 
-            // Fire custom event to tell main.js to start the game
             window.dispatchEvent(new Event('gameStart'));
         });
     </script>
