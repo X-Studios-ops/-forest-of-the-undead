@@ -65,26 +65,19 @@ function initEngine() {
     }
 }
 
-// Horror Lighting Setup (UPDATED FOR MOBILE VISIBILITY)
+// Horror Lighting Setup (REAL HORROR MODE)
 function setupLighting() {
-    // Ambient light ko bright kiya hai taaki screen black na lage
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.0); 
+    // Ambient light ko wapas dark and scary kar diya
+    const ambientLight = new THREE.AmbientLight(0x1a261a, 0.5); 
     scene.add(ambientLight);
 
-    // Player Flashlight ko strong kiya hai
-    window.playerLight = new THREE.PointLight(0xffaa55, 2, 20);
+    // Player Flashlight
+    window.playerLight = new THREE.PointLight(0xffddaa, 1.5, 18);
     playerLight.position.set(0, 1.6, 0);
     scene.add(playerLight);
-
-    // DEBUG FLOOR: Agar environment.js fail bhi ho jaye, toh yeh hari zameen humesha dikhegi!
-    const debugGeo = new THREE.PlaneGeometry(500, 500);
-    const debugMat = new THREE.MeshStandardMaterial({ color: 0x113311, roughness: 0.8 });
-    const debugFloor = new THREE.Mesh(debugGeo, debugMat);
-    debugFloor.rotation.x = -Math.PI / 2;
-    debugFloor.position.y = -0.2; // Thoda neeche taaki asli zameen ke sath overlap na kare
-    scene.add(debugFloor);
+    
+    // (DEBUG FLOOR YAHAN SE HATA DIYA GAYA HAI)
 }
-
 // ==========================================
 // MAIN GAME LOOP (Physics & Rendering)
 // ==========================================
