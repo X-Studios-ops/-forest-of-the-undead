@@ -17,17 +17,7 @@ import { initControls, updatePlayer } from './player/controls.js';
 // 3. ENVIRONMENT & ENEMY IMPORTS
 // ==========================================
 import { initMap } from './environment/map.js';
-// import { initEnemies, updateEnemies } from './enemy/enemyAI.js';
-// import { initHUD, updateHUD } from './ui/hud.js';
-// Import enemies at the top
 import { initEnemies, updateEnemies } from './enemy/enemyAI.js';
-
-// Inside initEngine(), add this after initControls(camera);
-initEnemies(scene);
-
-// Inside animate(), add this after updatePlayer(delta, camera);
-updateEnemies(delta, camera.position);
-
 
 // Global Variables
 let scene, camera, renderer, clock;
@@ -44,11 +34,10 @@ function initEngine() {
     renderer = initRenderer();
     initLighting(scene);
 
-    // --- B. World & Player Setup ---
+    // --- B. World, Player & Enemy Setup ---
     initMap(scene);
     initControls(camera);
-    // initEnemies(scene);
-    // initHUD();
+    initEnemies(scene); // Zombies yahan load honge
 
     // --- C. Window Events ---
     window.addEventListener('resize', () => resizeRenderer(camera, renderer), false);
@@ -67,8 +56,7 @@ function animate() {
         // Update all modules
         updatePlayer(delta, camera);
         updateLighting(camera); // Ensures tactical flashlight follows camera
-        // updateEnemies(delta, camera.position);
-        // updateHUD();
+        updateEnemies(delta, camera.position); // Zombies ko player ki taraf move karega
         
     } else {
         // Keep clock ticking when paused so time doesn't jump massively
