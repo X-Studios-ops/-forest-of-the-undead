@@ -65,18 +65,21 @@ function initEngine() {
     }
 }
 
-// Horror Lighting Setup (MOONLIGHT FIX FOR MOBILE)
+// Horror Lighting Setup (FAILSAFE BRIGHT LIGHTING)
 function setupLighting() {
-    // Moonlight effect: Thodi blue/grey roshni taaki zameen clear dikhe
-    const ambientLight = new THREE.AmbientLight(0x405060, 2.5); 
-    scene.add(ambientLight);
+    // Thoda sa grey fog taaki pitch black na ho
+    scene.background = new THREE.Color(0x050505); 
+    scene.fog = new THREE.FogExp2(0x050505, 0.02);
 
-    // Player Flashlight ko aur strong aur lamba kiya hai
-    window.playerLight = new THREE.PointLight(0xffeedd, 3.0, 35);
+    // HemisphereLight: Asmaan se safed aur zameen se dark roshni aayegi (100% visible)
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
+    scene.add(hemiLight);
+
+    // Player Flashlight
+    window.playerLight = new THREE.PointLight(0xffeedd, 2.0, 35);
     playerLight.position.set(0, 1.6, 0);
     scene.add(playerLight);
 }
-
 // ==========================================
 // MAIN GAME LOOP (Physics & Rendering)
 // ==========================================
