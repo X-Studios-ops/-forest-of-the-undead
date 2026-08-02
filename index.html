@@ -1,248 +1,220 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forest of the Undead - 3D Survival</title>
+    <meta charset="UTF-8" />
+    <!-- Mobile optimization: No zooming, strict full screen -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Project: NIGHTFALL (RE x MW)</title>
     
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS (CDN for quick styling, Vercel handle kar lega) -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Three.js & GLTFLoader -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- Fonts: Tactical (Rajdhani) & Horror (Nosifer) -->
+    <link href="https://fonts.googleapis.com/css2?family=Nosifer&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Jura:wght@400;700&display=swap');
-        
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background-color: #030503; 
-            color: white; 
-            font-family: 'Jura', sans-serif; 
-            user-select: none; 
-            -webkit-user-select: none; 
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            font-family: 'Rajdhani', sans-serif;
         }
-        
-        .font-horror { font-family: 'Creepster', cursive; letter-spacing: 2px; }
-        
-        .glass-panel { 
-            background: rgba(10, 15, 10, 0.7); 
-            backdrop-filter: blur(8px); 
-            border: 1px solid rgba(34, 197, 94, 0.2); 
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); 
-        }
-        
-        .bar-container { background: #1a1a1a; border: 1px solid #333; position: relative; overflow: hidden; }
-        .health-fill { background: linear-gradient(90deg, #7f1d1d, #ef4444); transition: width 0.3s; }
-        
-        .damage-overlay { position: fixed; inset: 0; box-shadow: inset 0 0 100px rgba(255, 0, 0, 0); pointer-events: none; transition: box-shadow 0.2s; z-index: 40; }
-        .damage-active { box-shadow: inset 0 0 150px rgba(255, 0, 0, 0.6); }
 
+        /* Resident Evil Vibe: Dark Vignette on the edges */
+        .horror-vignette {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            box-shadow: inset 0 0 150px rgba(0, 0, 0, 0.95), inset 0 0 50px rgba(0, 0, 0, 0.8);
+            z-index: 5;
+        }
+
+        /* Damage/Blood Overlay */
+        .damage-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, transparent 20%, rgba(150, 0, 0, 0.4) 100%);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease-out;
+            z-index: 6;
+        }
+        .taking-damage { opacity: 1 !important; }
+
+        /* Tactical Crosshair */
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .ch-line { position: absolute; background: rgba(255, 255, 255, 0.8); }
+        .ch-top { top: 0; left: 11px; width: 2px; height: 8px; }
+        .ch-bottom { bottom: 0; left: 11px; width: 2px; height: 8px; }
+        .ch-left { top: 11px; left: 0; width: 8px; height: 2px; }
+        .ch-right { top: 11px; right: 0; width: 8px; height: 2px; }
+        .ch-dot { top: 11px; left: 11px; width: 2px; height: 2px; background: red; }
+
+        /* Hitmarker (MW Style) */
+        .hitmarker { opacity: 0; transition: opacity 0.1s; position: absolute; inset: 0; }
+        .hit-active { opacity: 1 !important; }
+
+        /* Mobile Shooter Controls Setup */
+        .touch-zone { position: absolute; bottom: 10%; width: 40%; height: 50%; z-index: 20; }
+        #left-joystick-zone { left: 5%; }
+        #right-aim-zone { right: 5%; }
+        
+        .action-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(4px);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+        }
+        .action-btn:active { background: rgba(255, 255, 255, 0.3); }
+
+        /* ThreeJS Canvas container */
         #game-canvas { position: absolute; inset: 0; z-index: 1; }
-        #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
-
-        /* --- MOBILE CONTROLS --- */
-        /* Note: Removed the media query that was hiding buttons on landscape mobile */
-        .touch-btn { background: rgba(30, 41, 59, 0.7); border: 2px solid rgba(71, 85, 105, 0.8); border-radius: 50%; color: white; font-weight: bold; font-family: monospace; }
-        .touch-btn:active { background: rgba(59, 130, 246, 0.8); }
-
-        /* --- PORTRAIT WARNING --- */
-        #portrait-warning { display: none; }
-        @media screen and (orientation: portrait) and (max-width: 768px) {
-            #portrait-warning { display: flex !important; position: fixed; inset: 0; background: #000; z-index: 99999; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; }
-            #main-menu, #ui-layer, #loading-screen, #game-canvas, #mobile-controls { display: none !important; }
-        }
-        @keyframes spin { 100% { transform: rotate(90deg); } }
     </style>
 </head>
 <body>
 
-    <!-- PORTRAIT WARNING OVERLAY -->
-    <div id="portrait-warning">
-        <div style="font-size: 50px; margin-bottom: 20px; animation: spin 2s linear infinite;">🔄</div>
-        <h2 class="text-2xl font-bold text-red-500 mb-2">ROTATE YOUR PHONE</h2>
-        <p class="text-gray-400">Please play in Landscape Mode.</p>
-    </div>
-
-    <!-- 1. LOADING SCREEN -->
-    <div id="loading-screen" class="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-1000">
-        <h1 class="text-5xl font-horror text-red-600 mb-6 animate-pulse">FOREST OF THE UNDEAD</h1>
-        <div class="w-80 bar-container h-3 rounded-full mb-4">
-            <div class="health-fill h-full w-[100%] rounded-full animate-pulse"></div>
-        </div>
-        <p class="text-green-500 text-xs tracking-widest uppercase">Loading 3D Assets...</p>
-        
-        <!-- Adsterra Interstitial -->
-        <div class="mt-8 w-[250px] h-[200px] bg-gray-900 border border-gray-800 flex items-center justify-center rounded">
-            <span class="text-xs text-gray-600">Adsterra 250x200 Ad</span>
+    <!-- 1. LOADING SCREEN (Tactical/Dark) -->
+    <div id="loading-screen" class="absolute inset-0 bg-black z-[100] flex flex-col items-center justify-center transition-opacity duration-700">
+        <h1 class="text-4xl text-red-700 mb-2" style="font-family: 'Nosifer', cursive;">NIGHTFALL</h1>
+        <p class="text-gray-400 tracking-[0.3em] text-sm mb-8 animate-pulse">INITIATING TACTICAL PROTOCOL</p>
+        <div class="w-64 h-1 bg-gray-800 rounded">
+            <div id="loading-bar" class="h-full bg-red-600 w-0 transition-all duration-300"></div>
         </div>
     </div>
 
     <!-- 2. MAIN MENU -->
-    <div id="main-menu" class="absolute inset-0 z-40 bg-black/80 flex justify-between items-center px-6 hidden pointer-events-auto backdrop-blur-sm">
-        <div class="w-[140px] h-[500px] bg-black/50 border border-green-900/30 flex items-center justify-center rounded hidden md:flex"><span class="text-xs text-gray-600">Adsterra 160x600</span></div>
+    <div id="main-menu" class="absolute inset-0 bg-black/90 z-[90] hidden flex-col items-center justify-center backdrop-blur-md">
+        <h1 class="text-5xl md:text-7xl text-white font-bold tracking-wider mb-2">OPERATION <span class="text-red-600">NIGHTFALL</span></h1>
+        <p class="text-gray-400 mb-12 tracking-widest uppercase text-sm">Survival x Warfare</p>
         
-        <div class="flex flex-col items-center flex-1">
-            <h1 class="text-5xl md:text-7xl font-horror text-red-600 mb-2 text-center drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]">FOREST OF THE UNDEAD</h1>
-            <p class="text-green-500 mb-8 tracking-widest text-sm">MULTIPLAYER SURVIVAL</p>
-            
-            <div class="glass-panel p-6 rounded-xl w-80 md:w-96 flex flex-col gap-4">
-                <input type="text" id="player-name-input" placeholder="Enter Survivor Name" class="w-full bg-black/50 border border-green-900 p-3 rounded text-green-400 focus:outline-none text-center font-bold">
-                <button onclick="startGame()" class="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-3 rounded uppercase tracking-widest border border-red-500 shadow-lg">Enter The Forest</button>
-            </div>
-        </div>
-        
-        <div class="w-[140px] h-[500px] bg-black/50 border border-green-900/30 flex items-center justify-center rounded hidden md:flex"><span class="text-xs text-gray-600">Adsterra 160x600</span></div>
+        <button id="btn-deploy" class="px-12 py-3 bg-white/10 hover:bg-white/20 border border-white/30 text-white font-bold text-xl uppercase tracking-widest transition-all">
+            Deploy
+        </button>
     </div>
 
-    <!-- 3. IN-GAME HUD -->
-    <div id="ui-layer" class="hidden flex-col justify-between">
+    <!-- 3. GAME UI (MW x RE HUD) -->
+    <div id="game-hud" class="absolute inset-0 z-50 hidden pointer-events-none flex-col justify-between p-6">
         
-        <!-- Top HUD -->
-        <div class="flex justify-between p-3 w-full">
-            <div class="glass-panel p-3 rounded-lg flex items-center gap-3 w-44 md:w-72">
-                <div class="w-10 h-10 md:w-12 md:h-12 bg-gray-800 rounded-full border border-green-500 flex items-center justify-center text-xl">🧔🏻‍♂️</div>
-                <div class="flex-1 overflow-hidden">
-                    <h2 id="hud-name" class="font-bold text-xs md:text-sm text-white truncate">Survivor</h2>
-                    <div class="bar-container h-2 rounded-full mt-1">
-                        <div id="hud-health" class="health-fill h-full w-[100%] rounded-full"></div>
-                    </div>
+        <!-- Top: Objective & Radar -->
+        <div class="flex justify-between items-start">
+            <div class="bg-black/50 border-l-4 border-yellow-500 p-2 px-4 backdrop-blur-sm">
+                <p class="text-[10px] text-gray-400 uppercase tracking-wider">Current Objective</p>
+                <p class="text-white font-bold text-sm">SURVIVE THE HORDE</p>
+            </div>
+            <!-- Placeholder for Minimap (MW Style) -->
+            <div class="w-24 h-24 bg-green-900/30 border border-green-500/50 rounded-full shadow-[0_0_15px_rgba(34,197,94,0.2)]"></div>
+        </div>
+
+        <!-- Center: Crosshair & Hitmarker -->
+        <div class="crosshair">
+            <div class="ch-line ch-top"></div>
+            <div class="ch-line ch-bottom"></div>
+            <div class="ch-line ch-left"></div>
+            <div class="ch-line ch-right"></div>
+            <div class="ch-dot"></div>
+            <!-- Hitmarker SVG (Flashes on hit) -->
+            <svg id="hitmarker-ui" class="hitmarker w-8 h-8 absolute -top-1 -left-1" viewBox="0 0 100 100">
+                <line x1="20" y1="20" x2="40" y2="40" stroke="white" stroke-width="4"/>
+                <line x1="80" y1="20" x2="60" y2="40" stroke="white" stroke-width="4"/>
+                <line x1="20" y1="80" x2="40" y2="60" stroke="white" stroke-width="4"/>
+                <line x1="80" y1="80" x2="60" y2="60" stroke="white" stroke-width="4"/>
+            </svg>
+        </div>
+
+        <!-- Bottom: Health (RE) & Ammo (MW) -->
+        <div class="flex justify-between items-end w-full">
+            <!-- Health Status (ECG or Text) -->
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-full border-2 border-green-500 flex items-center justify-center bg-green-900/20 shadow-[0_0_10px_rgba(34,197,94,0.5)]">
+                    <span class="text-green-400 font-bold">FINE</span>
+                </div>
+                <div class="w-40 h-2 bg-gray-800 rounded-r-full overflow-hidden">
+                    <div id="health-bar" class="w-full h-full bg-green-500"></div>
                 </div>
             </div>
-            
-            <div class="glass-panel p-2 rounded-lg border-t-2 border-yellow-500 text-center hidden md:block">
-                <p class="text-[10px] text-gray-400 uppercase">Directive</p>
-                <p class="text-yellow-400 font-bold text-xs">Find & Slay the Zombie Queen</p>
-            </div>
-            
-            <div class="glass-panel p-3 rounded-lg w-36 md:w-56">
-                <h3 class="text-[10px] text-gray-400 uppercase border-b border-gray-700 pb-1 mb-1">Squad</h3>
-                <ul class="space-y-1 text-[11px]" id="squad-list">
-                    <li class="text-green-400">🟢 P1 (You)</li>
-                </ul>
-            </div>
-        </div>
 
-        <!-- Center Crosshair -->
-        <div class="flex-1 flex items-center justify-center relative">
-            <div class="w-1.5 h-1.5 bg-white rounded-full opacity-70"></div>
-            <div class="absolute w-6 h-6 border border-white/30 rounded-full"></div>
-        </div>
-
-        <!-- Bottom HUD -->
-        <div class="flex justify-between items-end p-3 w-full">
-            <div class="glass-panel p-2 rounded-lg w-44 md:w-72 h-28 md:h-36 flex flex-col pointer-events-auto">
-                <div id="chat-messages" class="flex-1 overflow-y-auto text-[10px] space-y-1">
-                    <p class="text-blue-400">[System] Welcome to the Forest.</p>
+            <!-- Ammo Counter -->
+            <div class="text-right">
+                <p class="text-gray-400 text-xs uppercase tracking-widest mb-1">Assault Rifle</p>
+                <div class="flex items-baseline gap-1">
+                    <span id="ammo-current" class="text-5xl text-white font-bold">30</span>
+                    <span class="text-2xl text-gray-500">/</span>
+                    <span id="ammo-reserve" class="text-xl text-gray-400">120</span>
                 </div>
-                <input type="text" id="chat-input" placeholder="Chat..." class="bg-black/50 border border-gray-700 text-white text-[10px] p-1 rounded mt-1 focus:outline-none">
-            </div>
-            
-            <!-- Adsterra Footer -->
-            <div class="hidden md:flex bg-black border border-gray-800 w-[600px] h-[70px] items-center justify-center rounded">
-                <span class="text-xs text-gray-600">Adsterra 728x90 Footer Banner</span>
-            </div>
-
-            <div class="glass-panel p-3 rounded-lg text-right">
-                <p class="text-gray-400 text-[10px]">Ammo</p>
-                <p class="text-xl md:text-3xl font-bold font-mono">30 <span class="text-xs text-gray-500">/ 120</span></p>
-                <div id="kill-feed" class="text-[10px] text-gray-400 space-y-0.5"></div>
             </div>
         </div>
     </div>
 
-    <!-- 4. BOSS UI -->
-    <div id="boss-ui" class="absolute top-6 left-1/2 -translate-x-1/2 w-1/2 hidden z-20">
-        <h2 class="text-center text-red-500 font-horror text-xl tracking-widest mb-1">THE ZOMBIE QUEEN</h2>
-        <div class="bar-container h-3 rounded border border-red-900">
-            <div id="boss-health" class="bg-red-600 h-full w-[100%] transition-all"></div>
+    <!-- 4. MOBILE CONTROLS (Hidden by default on PC) -->
+    <div id="mobile-controls" class="absolute inset-0 z-40 hidden pointer-events-none">
+        <!-- Left Side: Movement Joystick Area -->
+        <div id="left-joystick-zone" class="touch-zone pointer-events-auto rounded-xl"></div>
+        
+        <!-- Right Side: Aim Area & Buttons -->
+        <div id="right-aim-zone" class="touch-zone pointer-events-auto rounded-xl">
+            <button id="btn-shoot" class="action-btn absolute bottom-0 right-0 w-20 h-20 bg-red-600/30 border-red-500 text-xl shadow-[0_0_15px_rgba(220,38,38,0.5)]">FIRE</button>
+            <button id="btn-ads" class="action-btn absolute bottom-24 right-16 w-14 h-14">ADS</button>
+            <button id="btn-jump" class="action-btn absolute bottom-8 right-24 w-12 h-12 text-sm">JMP</button>
+            <button id="btn-crouch" class="action-btn absolute bottom-24 right-0 w-12 h-12 text-sm">CRCH</button>
         </div>
     </div>
 
-                <!-- 5. MOBILE CONTROLS (PERFECT VERTICAL CENTER - NO OVERLAP) -->
-    <div id="mobile-controls" class="absolute inset-0 z-50 pointer-events-none hidden">
-        
-        <!-- D-PAD (Left Side, Middle of screen) -->
-        <div class="absolute top-1/2 -translate-y-1/2 left-4 flex flex-col items-center gap-1 pointer-events-auto opacity-80 mt-4">
-            <button id="btn-up" class="touch-btn w-12 h-12">▲</button>
-            <div class="flex gap-1">
-                <button id="btn-left" class="touch-btn w-12 h-12">◀</button>
-                <button id="btn-down" class="touch-btn w-12 h-12">▼</button>
-                <button id="btn-right" class="touch-btn w-12 h-12">▶</button>
-            </div>
-        </div>
-        
-        <!-- Touch Look Area -->
-        <div id="touch-look-area" class="absolute top-0 right-0 w-[50vw] h-[100vh] pointer-events-auto"></div>
-        
-        <!-- Jump & Shoot (Right Side, Middle of screen) -->
-        <div class="absolute top-1/2 -translate-y-1/2 right-6 flex flex-col gap-3 pointer-events-auto items-end opacity-90 mt-4">
-            <button id="btn-jump" class="touch-btn w-12 h-12 text-xs">JUMP</button>
-            <button id="btn-shoot" class="w-16 h-16 bg-red-700 rounded-full border-2 border-red-500 text-white font-bold active:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.8)]">FIRE</button>
-        </div>
-    </div>
-
+    <!-- Effects Layers -->
+    <div class="horror-vignette"></div>
     <div id="damage-flash" class="damage-overlay"></div>
+
+    <!-- The 3D Canvas Container -->
     <div id="game-canvas"></div>
 
-        <!-- UI & Game Start Logic -->
+    <!-- MAIN LOGIC (Vite uses type="module") -->
+    <!-- GitHub/Vercel setup ke liye hamesha module use karna -->
+    <script type="module" src="/main.js"></script>
+
+    <!-- Basic UI Toggle Logic -->
     <script>
+        // Simulate loading time
         setTimeout(() => {
-            document.getElementById('loading-screen').classList.add('opacity-0');
-            setTimeout(() => { document.getElementById('loading-screen').classList.add('hidden'); document.getElementById('main-menu').classList.remove('hidden'); }, 1000);
-        }, 1200);
+            document.getElementById('loading-bar').style.width = '100%';
+            setTimeout(() => {
+                document.getElementById('loading-screen').classList.add('opacity-0', 'pointer-events-none');
+                document.getElementById('main-menu').classList.remove('hidden');
+                document.getElementById('main-menu').classList.add('flex');
+            }, 500);
+        }, 1500);
 
-        function startGame() {
-            const elem = document.documentElement;
-            if (elem.requestFullscreen) elem.requestFullscreen().catch(e => {});
-            if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(e => {});
-
-            const name = document.getElementById('player-name-input').value || 'Hero';
-            document.getElementById('hud-name').innerText = name;
-            
+        document.getElementById('btn-deploy').addEventListener('click', () => {
             document.getElementById('main-menu').classList.add('hidden');
-            document.getElementById('ui-layer').classList.remove('hidden');
-            document.getElementById('ui-layer').classList.add('flex');
-
-            const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+            document.getElementById('game-hud').classList.remove('hidden');
+            document.getElementById('game-hud').classList.add('flex');
             
-            if (isMobile) {
-                const controls = document.getElementById('mobile-controls');
-                controls.classList.remove('hidden');
-                controls.style.display = 'flex'; // UI show karo
+            // Check if mobile device to show touch controls
+            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                document.getElementById('mobile-controls').classList.remove('hidden');
             } else {
+                // Request pointer lock for PC
                 document.body.requestPointerLock();
             }
 
-            // Engine Start karo
-            if (window.initEngine && !window.scene) {
-                window.initEngine();
-                window.animate();
-            }
-            
-            // 🚨 YEH LINE ZAROORI HAI MOBILE MOVEMENT KE LIYE! 🚨
-            window.gameActive = true; 
-        }
-
-        document.getElementById('chat-input').addEventListener('keypress', function(e) {
-            if(e.key === 'Enter' && this.value.trim() !== '') {
-                const box = document.getElementById('chat-messages');
-                box.innerHTML += `<p class="text-green-400">[You] ${this.value}</p>`;
-                this.value = ''; box.scrollTop = box.scrollHeight;
-            }
+            // Fire custom event to tell main.js to start the game
+            window.dispatchEvent(new Event('gameStart'));
         });
     </script>
-
-    <!-- ========================================== -->
-    <!-- MODULE INCLUDES (Strict Order Required!)   -->
-    <!-- ========================================== -->
-    <script src="main.js"></script>
-    <script src="environment.js"></script>
-    <script src="playerControls.js"></script>
-    <script src="enemyAI.js"></script>
-    <script src="multiplayer.js"></script>
-
 </body>
 </html>
