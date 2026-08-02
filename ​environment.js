@@ -5,18 +5,13 @@
 window.buildEnvironment = function() {
     if (!window.scene) return;
 
-    // ==========================================
-    // 1. INFINITE GROUND (Optimized Low-Poly)
-    // ==========================================
+        // 1. Zameen (Floor) - BULLETPROOF VISIBILITY
     const floorGeo = new THREE.PlaneGeometry(800, 800, 1, 1); 
-    const floorMat = new THREE.MeshStandardMaterial({ 
-        color: 0x1a2b1a, // Dark green moonlight visible color
-        roughness: 1.0, 
-        metalness: 0.0 
-    });
+    const floorMat = new THREE.MeshLambertMaterial({ color: 0x113311 }); // Bright Forest Green
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     window.scene.add(floor);
+
 
     // ==========================================
     // 2. PROCEDURAL FOREST (Zero Lag Instancing)
