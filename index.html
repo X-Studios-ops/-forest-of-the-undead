@@ -186,7 +186,7 @@
     <div id="damage-flash" class="damage-overlay"></div>
     <div id="game-canvas"></div>
 
-    <!-- UI Logic -->
+        <!-- UI & Game Start Logic -->
     <script>
         setTimeout(() => {
             document.getElementById('loading-screen').classList.add('opacity-0');
@@ -207,19 +207,22 @@
 
             const isMobile = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
             
-            // Fix applied: Show controls based on touch feature, bypassing CSS conflicts
             if (isMobile) {
                 const controls = document.getElementById('mobile-controls');
                 controls.classList.remove('hidden');
-                controls.style.display = 'flex'; // Forced flex display
+                controls.style.display = 'flex'; // UI show karo
             } else {
                 document.body.requestPointerLock();
             }
 
+            // Engine Start karo
             if (window.initEngine && !window.scene) {
                 window.initEngine();
                 window.animate();
             }
+            
+            // 🚨 YEH LINE ZAROORI HAI MOBILE MOVEMENT KE LIYE! 🚨
+            window.gameActive = true; 
         }
 
         document.getElementById('chat-input').addEventListener('keypress', function(e) {
@@ -242,4 +245,3 @@
 
 </body>
 </html>
- 
