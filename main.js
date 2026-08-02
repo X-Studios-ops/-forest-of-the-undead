@@ -19,6 +19,15 @@ import { initControls, updatePlayer } from './player/controls.js';
 import { initMap } from './environment/map.js';
 // import { initEnemies, updateEnemies } from './enemy/enemyAI.js';
 // import { initHUD, updateHUD } from './ui/hud.js';
+// Import enemies at the top
+import { initEnemies, updateEnemies } from './enemy/enemyAI.js';
+
+// Inside initEngine(), add this after initControls(camera);
+initEnemies(scene);
+
+// Inside animate(), add this after updatePlayer(delta, camera);
+updateEnemies(delta, camera.position);
+
 
 // Global Variables
 let scene, camera, renderer, clock;
