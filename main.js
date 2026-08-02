@@ -65,19 +65,18 @@ function initEngine() {
     }
 }
 
-// Horror Lighting Setup (REAL HORROR MODE)
+// Horror Lighting Setup (MOONLIGHT FIX FOR MOBILE)
 function setupLighting() {
-    // Ambient light ko wapas dark and scary kar diya
-    const ambientLight = new THREE.AmbientLight(0x1a261a, 0.5); 
+    // Moonlight effect: Thodi blue/grey roshni taaki zameen clear dikhe
+    const ambientLight = new THREE.AmbientLight(0x405060, 2.5); 
     scene.add(ambientLight);
 
-    // Player Flashlight
-    window.playerLight = new THREE.PointLight(0xffddaa, 1.5, 18);
+    // Player Flashlight ko aur strong aur lamba kiya hai
+    window.playerLight = new THREE.PointLight(0xffeedd, 3.0, 35);
     playerLight.position.set(0, 1.6, 0);
     scene.add(playerLight);
-    
-    // (DEBUG FLOOR YAHAN SE HATA DIYA GAYA HAI)
 }
+
 // ==========================================
 // MAIN GAME LOOP (Physics & Rendering)
 // ==========================================
